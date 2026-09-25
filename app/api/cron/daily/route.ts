@@ -3,6 +3,7 @@
 
 import { NextResponse } from 'next/server';
 import { crawlAll, nimbleConfigured } from '@/lib/rates/nimble';
+import { listSources, toRateSources } from '@/lib/sources/store';
 import { liquidConfigured, parseRates } from '@/lib/rates/parse';
 import { decideSweep } from '@/lib/engine';
 import { DEMO_CUSTOMER } from '@/lib/demo/seed';
@@ -27,7 +28,10 @@ export async function GET(request: Request) {
     );
   }
 
-  const crawls = await crawlAll();
+  // Crawl whatever the partner-bank list currently holds, so adding a bank
+  // in the admin UI changes tomorrow's run without a deploy.
+  const partners = await listSources();
+  const crawls = await crawlAll(toRateSources(partners));
   const parsed = await Promise.allSettled(crawls.map(parseRates));
   const observations: RateObservation[] = parsed.flatMap((p) =>
     p.status === 'fulfilled' ? p.value : [],
@@ -87,6 +91,7 @@ export async function GET(request: Request) {
 
   return NextResponse.json({
     ok: true,
+    partners: partners.length,
     crawled: crawls.length,
     ratesParsed: observations.length,
     moved: decision.shouldMove,

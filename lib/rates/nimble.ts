@@ -142,13 +142,17 @@ export async function crawlUrl(url: string, waitFor?: string): Promise<CrawlResu
   });
 }
 
-/** Crawl every source. One bad source does not sink the run. */
-export async function crawlAll(): Promise<CrawlResult[]> {
-  const settled = await Promise.allSettled(SOURCES.map(crawlOne));
+/**
+ * Crawl a set of sources. One bad source does not sink the run.
+ * Defaults to the built-in list; the daily job passes the configured
+ * partner banks instead.
+ */
+export async function crawlAll(sources: RateSource[] = SOURCES): Promise<CrawlResult[]> {
+  const settled = await Promise.allSettled(sources.map(crawlOne));
   const ok: CrawlResult[] = [];
   for (const [i, r] of settled.entries()) {
     if (r.status === 'fulfilled') ok.push(r.value);
-    else console.error(`[nimble] ${SOURCES[i].id} failed:`, r.reason);
+    else console.error(`[nimble] ${sources[i].id} failed:`, r.reason);
   }
   return ok;
 }

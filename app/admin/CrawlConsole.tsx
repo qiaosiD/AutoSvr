@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { PartnerBanks } from './PartnerBanks';
 import { formatCents, formatPct } from '@/lib/apy';
 import type { CrawlMessage, CrawlReport } from '../api/admin/crawl/route';
 
@@ -16,6 +17,8 @@ const EXAMPLES = [
 ];
 
 export function CrawlConsole() {
+  // Set when the partner list asks for a crawl, so the two panels share state.
+  const [queued, setQueued] = useState<string[] | null>(null);
   const [urls, setUrls] = useState<string[]>(Array(SLOTS).fill(''));
   const [waitFor, setWaitFor] = useState('');
   const [running, setRunning] = useState(false);
@@ -26,16 +29,21 @@ export function CrawlConsole() {
   const filled = urls.map((u) => u.trim()).filter(Boolean);
 
   async function run() {
+    return runWith(filled);
+  }
+
+  async function runWith(targets: string[]) {
+    if (targets.length === 0) return;
     setRunning(true);
     setError(null);
     setReports([]);
-    setPending(filled);
+    setPending(targets);
 
     try {
       const res = await fetch('/api/admin/crawl', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ urls: filled, waitFor: waitFor.trim() || undefined }),
+        body: JSON.stringify({ urls: targets, waitFor: waitFor.trim() || undefined }),
       });
 
       // Errors come back as plain JSON rather than a stream.
@@ -81,8 +89,20 @@ export function CrawlConsole() {
     }
   }
 
+  // Running from the partner list fills the slots first, so it is obvious
+  // which pages are about to be fetched.
+  useEffect(() => {
+    if (!queued) return;
+    setUrls([...queued, ...Array(SLOTS).fill('')].slice(0, SLOTS));
+    setQueued(null);
+    void runWith(queued);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queued]);
+
   return (
     <div className="space-y-8">
+      <PartnerBanks onCrawl={(urls) => setQueued(urls)} />
+
       <section className="rounded-xl bg-white/5 p-6 ring-1 ring-white/10">
         <div className="mb-4 flex items-baseline justify-between gap-4">
           <h2 className="text-sm font-medium uppercase tracking-wide text-zinc-400">
