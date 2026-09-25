@@ -206,7 +206,19 @@ export default async function WelcomePage() {
       </section>
 
       {/* ---------- Safety ---------- */}
-      <section id="safety" className="border-t" style={{ borderColor: 'var(--line)', background: 'var(--brand-deep)' }}>
+      <section
+        id="safety"
+        className="border-t bg-cover bg-center"
+        style={{
+          borderColor: 'var(--line)',
+          backgroundColor: 'var(--brand-deep)',
+          // Generated band under a heavy scrim: the image reads as texture and
+          // the copy stays legible. If the file is absent the solid colour
+          // renders on its own and the section looks exactly as it did before.
+          backgroundImage:
+            'linear-gradient(to right, rgba(11,27,51,0.97) 0%, rgba(11,27,51,0.9) 55%, rgba(11,27,51,0.74) 100%), url(/generated/safety-band.jpg)',
+        }}
+      >
         <div className="mx-auto max-w-6xl px-5 py-20 text-white">
           <div
             className="mb-4 text-[11px] font-bold uppercase tracking-[0.14em]"

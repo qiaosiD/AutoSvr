@@ -10,7 +10,8 @@
     "backfill": "tsx scripts/backfill.mts",
     "check": "tsx scripts/check.mts",
     "audit": "tsx scripts/audit.mts",
-    "rawtree:check": "tsx scripts/rawtree-check.mts"
+    "rawtree:check": "tsx scripts/rawtree-check.mts",
+    "images": "tsx scripts/generate-images.mts"
   },
   "dependencies": {
     "next": "16.3.6",
