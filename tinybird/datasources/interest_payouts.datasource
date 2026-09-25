@@ -1,6 +1,8 @@
 DESCRIPTION >
     Interest actually received from a bank and routed per the customer's choice.
 
+TOKEN "autosvr_ingest" APPEND
+
 SCHEMA >
     `paidAt` DateTime64(3) `json:$.paidAt`,
     `customerId` String `json:$.customerId`,

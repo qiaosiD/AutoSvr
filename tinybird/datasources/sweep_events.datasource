@@ -1,6 +1,8 @@
 DESCRIPTION >
     A customer's balance moving from one bank to another.
 
+TOKEN "autosvr_ingest" APPEND
+
 SCHEMA >
     `occurredAt` DateTime64(3) `json:$.occurredAt`,
     `customerId` String `json:$.customerId`,

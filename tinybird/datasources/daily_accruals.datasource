@@ -1,6 +1,8 @@
 DESCRIPTION >
     One day of interest earned by one customer at one bank.
 
+TOKEN "autosvr_ingest" APPEND
+
 SCHEMA >
     `date` Date `json:$.date`,
     `customerId` String `json:$.customerId`,

@@ -20,9 +20,13 @@ Rules:
 - Skip CDs, checking accounts, and money market accounts. Savings only.
 - Omit any entry whose APY you cannot read directly from the page.`;
 
-/** Strip tags and collapse whitespace so the model sees text, not markup. */
-function toText(html: string): string {
-  return html
+/**
+ * Nimble can return markdown directly, which is already clean enough for the
+ * model. Only fall back to stripping when we got raw HTML.
+ */
+function toText(content: string, isMarkdown: boolean): string {
+  if (isMarkdown) return content.trim().slice(0, 24_000);
+  return content
     .replace(/<script[\s\S]*?<\/script>/gi, ' ')
     .replace(/<style[\s\S]*?<\/style>/gi, ' ')
     .replace(/<[^>]+>/g, ' ')
@@ -51,7 +55,7 @@ export async function parseRates(crawl: CrawlResult): Promise<RateObservation[]>
       temperature: 0,
       messages: [
         { role: 'system', content: INSTRUCTION },
-        { role: 'user', content: toText(crawl.body) },
+        { role: 'user', content: toText(crawl.content, crawl.isMarkdown) },
       ],
     }),
   });

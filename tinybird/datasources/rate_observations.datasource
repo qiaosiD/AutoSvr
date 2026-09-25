@@ -1,6 +1,8 @@
 DESCRIPTION >
     One APY reading for one bank at one point in time, as parsed from a crawl.
 
+TOKEN "autosvr_ingest" APPEND
+
 SCHEMA >
     `observedAt` DateTime64(3) `json:$.observedAt`,
     `bankId` String `json:$.bankId`,

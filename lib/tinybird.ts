@@ -8,7 +8,9 @@
 
 import type { Accrual, RateObservation, SweepEvent } from './types';
 
-const HOST = process.env.TINYBIRD_HOST ?? 'https://api.us-east.tinybird.co';
+// Workspaces are regional. Confirm yours in the Tinybird dashboard and set
+// TINYBIRD_HOST — this default is correct only for some regions.
+const HOST = process.env.TINYBIRD_HOST ?? 'https://api.tinybird.co';
 
 export function tinybirdConfigured(): boolean {
   return Boolean(process.env.TINYBIRD_TOKEN);
