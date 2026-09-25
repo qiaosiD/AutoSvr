@@ -1,0 +1,14 @@
+DESCRIPTION >
+    One day of interest earned by one customer at one bank.
+
+SCHEMA >
+    `date` Date `json:$.date`,
+    `customerId` String `json:$.customerId`,
+    `bankId` String `json:$.bankId`,
+    `principalCents` Int64 `json:$.principalCents`,
+    `apr` Float64 `json:$.apr`,
+    `accruedCents` Int64 `json:$.accruedCents`
+
+ENGINE "MergeTree"
+ENGINE_PARTITION_KEY "toYYYYMM(date)"
+ENGINE_SORTING_KEY "customerId, date"

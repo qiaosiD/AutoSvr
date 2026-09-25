@@ -1,0 +1,14 @@
+DESCRIPTION >
+    Interest actually received from a bank and routed per the customer's choice.
+
+SCHEMA >
+    `paidAt` DateTime64(3) `json:$.paidAt`,
+    `customerId` String `json:$.customerId`,
+    `periodStart` Date `json:$.periodStart`,
+    `periodEnd` Date `json:$.periodEnd`,
+    `amountCents` Int64 `json:$.amountCents`,
+    `destination` String `json:$.destination`
+
+ENGINE "MergeTree"
+ENGINE_PARTITION_KEY "toYYYYMM(paidAt)"
+ENGINE_SORTING_KEY "customerId, paidAt"

@@ -1,0 +1,14 @@
+DESCRIPTION >
+    Every move AutoSvr made for a customer, newest first, with the reason.
+
+TOKEN "dashboard_read" READ
+
+NODE endpoint
+SQL >
+    %
+    SELECT occurredAt, fromBankId, toBankId, amountCents, aprAtMove, reason
+    FROM sweep_events
+    WHERE customerId = {{ String(customerId, 'cus_demo') }}
+    ORDER BY occurredAt DESC
+
+TYPE endpoint
