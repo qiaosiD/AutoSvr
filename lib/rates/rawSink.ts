@@ -9,6 +9,7 @@
 
 import { randomUUID } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 
 export interface RawBlob {
@@ -23,12 +24,40 @@ export interface RawSink {
   put(blob: Omit<RawBlob, 'id'>): Promise<string>;
 }
 
+/**
+ * Serverless filesystems are read-only apart from the temp directory, so
+ * writing to the project directory throws in production. Fall back to tmp
+ * there — but tmp does not survive between invocations, so blobs written on a
+ * deployed cron run are for same-run debugging only. Set RAW_SINK=rawtree if
+ * you need them to persist.
+ */
+const isServerless = Boolean(process.env.VERCEL ?? process.env.AWS_LAMBDA_FUNCTION_NAME);
+let warnedEphemeral = false;
+
 const fileSink: RawSink = {
   async put(blob) {
     const id = randomUUID();
-    const dir = path.join(process.cwd(), '.raw');
-    await mkdir(dir, { recursive: true });
-    await writeFile(path.join(dir, `${id}.json`), JSON.stringify({ id, ...blob }, null, 2));
+
+    if (isServerless && !warnedEphemeral) {
+      warnedEphemeral = true;
+      console.warn(
+        '[rawSink] Writing crawl blobs to a temp directory; they will not survive ' +
+          'this invocation. Set RAW_SINK=rawtree to retain them.',
+      );
+    }
+
+    const dir = isServerless
+      ? path.join(os.tmpdir(), 'autosvr-raw')
+      : path.join(process.cwd(), '.raw');
+
+    try {
+      await mkdir(dir, { recursive: true });
+      await writeFile(path.join(dir, `${id}.json`), JSON.stringify({ id, ...blob }, null, 2));
+    } catch (err) {
+      // Losing a debugging artifact must never fail the crawl that produced it.
+      console.error('[rawSink] Could not persist raw blob:', err);
+    }
+
     return id;
   },
 };
