@@ -26,6 +26,17 @@ export interface BankHolding {
   reason: string;
 }
 
+/** One calendar day: which bank held the money, at what rate, earning what. */
+export interface DayCell {
+  date: string; // YYYY-MM-DD
+  bankId: string;
+  bankName: string;
+  apr: number;
+  accruedCents: number;
+  /** True on the day a transfer landed, so the grid can mark the handoff. */
+  isMoveDay: boolean;
+}
+
 export type ActivityKind = 'funding' | 'transfer' | 'interest' | 'withdrawal';
 
 export interface ActivityRow {
@@ -56,6 +67,8 @@ export interface DepositorAccount {
   baselineApr: number;
   currentBank: BankHolding | null;
   holdings: BankHolding[]; // newest first
+  /** Every day since opening, oldest first. Drives the day-by-day grid. */
+  days: DayCell[];
   activity: ActivityRow[]; // newest first
   /** Today's best available rate across the monitored banks. */
   bestAvailableApy: number;
@@ -181,6 +194,15 @@ export async function getDepositorAccount(customerId = 'cus_demo'): Promise<Depo
   const data = await getDashboardData(customerId);
   const holdings = buildHoldings(data);
   const activity = buildActivity(data, holdings);
+  const moveDates = new Set(data.sweeps.map((s) => s.occurredAt.slice(0, 10)));
+  const days: DayCell[] = data.timeline.map((d) => ({
+    date: d.date,
+    bankId: d.bankId,
+    bankName: BANKS_BY_ID.get(d.bankId)?.name ?? d.bankId,
+    apr: d.apr,
+    accruedCents: d.accruedCents,
+    isMoveDay: moveDates.has(d.date),
+  }));
   const openedOn = data.timeline[0]?.date ?? '';
   const lastDate = data.timeline.at(-1)?.date ?? openedOn;
 
@@ -200,6 +222,7 @@ export async function getDepositorAccount(customerId = 'cus_demo'): Promise<Depo
     baselineApr: BASELINE_APR,
     currentBank: holdings.at(-1) ?? null,
     holdings: holdings.slice().reverse(),
+    days,
     activity,
     bestAvailableApy: data.leaderboard[0]?.apy ?? data.currentApr,
     partnerBankCount: BANKS_BY_ID.size,

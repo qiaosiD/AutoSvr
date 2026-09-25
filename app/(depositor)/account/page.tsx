@@ -3,6 +3,7 @@ import { formatCents, formatPct } from '@/lib/apy';
 import { SWEEP_THRESHOLD_APR } from '@/lib/engine';
 import { getDepositorAccount, type ActivityKind } from '@/lib/depositor/account';
 import { RATE_VARIABILITY_NOTICE } from '@/lib/depositor/disclosures';
+import { DayGrid } from '../components/DayGrid';
 
 export const dynamic = 'force-dynamic';
 
@@ -63,9 +64,6 @@ export default async function AccountHome() {
   [...new Set(acct.holdings.map((h) => h.bankId))].forEach((id, i) =>
     colorFor.set(id, BANK_COLORS[i % BANK_COLORS.length]),
   );
-
-  const totalDays = acct.holdings.reduce((s, h) => s + h.days, 0);
-  const oldestFirst = acct.holdings.slice().reverse();
 
   // The engine holds when the best alternative doesn't clear the transfer cost.
   // Saying so plainly is the difference between a product and a black box.
@@ -222,22 +220,8 @@ export default async function AccountHome() {
           Every bank that has held your deposit since you joined, in order.
         </p>
 
-        {/* Proportional timeline */}
-        <div className="mt-6 flex h-11 w-full overflow-hidden rounded-lg">
-          {oldestFirst.map((h) => (
-            <div
-              key={`${h.bankId}-${h.startDate}`}
-              title={`${h.bankName} · ${fmtShort(h.startDate)}–${fmtShort(h.endDate)} · ${h.days} days · ${formatPct(h.avgApy)}`}
-              style={{
-                width: `${(h.days / totalDays) * 100}%`,
-                background: colorFor.get(h.bankId),
-              }}
-            />
-          ))}
-        </div>
-        <div className="mt-2 flex justify-between text-[12px]" style={{ color: 'var(--ink-faint)' }}>
-          <span className="tnum">{fmtDate(acct.openedOn)}</span>
-          <span className="tnum">{fmtDate(acct.holdings[0]?.endDate ?? acct.openedOn)}</span>
+        <div className="mt-6">
+          <DayGrid days={acct.days} colorFor={colorFor} />
         </div>
 
         <div className="mt-6 overflow-x-auto">
