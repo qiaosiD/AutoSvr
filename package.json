@@ -12,10 +12,12 @@
     "audit": "tsx scripts/audit.mts",
     "rawtree:check": "tsx scripts/rawtree-check.mts",
     "images": "tsx scripts/generate-images.mts",
-    "crawl:test": "tsx scripts/crawl-test.mts"
+    "crawl:test": "tsx scripts/crawl-test.mts",
+    "parse:test": "tsx scripts/parse-test.mts"
   },
   "dependencies": {
     "next": "16.3.6",
+    "node-html-parser": "^9.0.4",
     "react": "19.2.8",
     "react-dom": "19.2.8"
   },

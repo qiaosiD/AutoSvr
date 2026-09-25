@@ -20,6 +20,11 @@ export interface RateObservation {
   minBalanceCents: number;
   monthlyFeeCents: number;
   promoExpiresOn: string | null;
+  /**
+   * Deposit-insurance line as the source states it ("Member FDIC",
+   * "Federally insured by NCUA"). Null when the source does not say.
+   */
+  insurer: string | null;
   sourceUrl: string;
   /** Pointer back to the raw crawl blob this was parsed from. */
   rawBlobId: string | null;

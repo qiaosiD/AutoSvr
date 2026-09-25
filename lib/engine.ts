@@ -1,7 +1,6 @@
 // The daily job: find today's best rate, decide whether to move, accrue
 // interest on wherever the money actually sat.
 
-import { BANKS_BY_ID } from './banks';
 import { dailyInterestCents } from './apy';
 import { closedReason, isBankingDay, nextBankingDay } from './calendar';
 import type { Accrual, Customer, RateObservation, SweepEvent } from './types';
@@ -21,6 +20,18 @@ export interface SweepDecision {
   reason: string;
 }
 
+/**
+ * Deposit insurance is the one non-negotiable: AutoSvr moves customer savings,
+ * so an uninsured institution is ineligible at any rate. This previously
+ * checked membership of a hardcoded bank list, which silently rejected every
+ * bank a live crawl discovered — the engine would find nothing eligible and
+ * never sweep.
+ */
+export function isInsured(o: RateObservation): boolean {
+  if (!o.insurer) return false;
+  return /\b(FDIC|NCUA)\b/i.test(o.insurer);
+}
+
 /** Best eligible rate for a given balance, ignoring accounts they'd fail to qualify for. */
 export function bestRate(
   observations: RateObservation[],
@@ -29,7 +40,7 @@ export function bestRate(
   const eligible = observations
     .filter((o) => o.minBalanceCents <= balanceCents)
     .filter((o) => o.monthlyFeeCents === 0)
-    .filter((o) => BANKS_BY_ID.has(o.bankId));
+    .filter((o) => isInsured(o));
   if (eligible.length === 0) return null;
   return eligible.reduce((best, o) => (o.apy > best.apy ? o : best));
 }

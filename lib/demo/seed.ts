@@ -69,6 +69,7 @@ export function seedRateHistory(): RateObservation[] {
         minBalanceCents: 0,
         monthlyFeeCents: 0,
         promoExpiresOn: null,
+        insurer: 'Member FDIC',
         sourceUrl: 'demo://seed',
         rawBlobId: null,
       });

@@ -32,6 +32,8 @@ export interface CrawlResult {
   content: string;
   /** Markdown needs no tag-stripping before it reaches the parser. */
   isMarkdown: boolean;
+  /** Raw HTML, kept because selector parsing needs structure markdown loses. */
+  html: string;
 }
 
 async function crawlOnce(source: RateSource): Promise<CrawlResult> {
@@ -51,6 +53,15 @@ async function crawlOnce(source: RateSource): Promise<CrawlResult> {
       formats: ['markdown', 'html'],
       country: 'US',
       locale: 'en-US',
+      // Waiting on a real data element is what makes these crawls reliable;
+      // the retry below is a safety net, not the mechanism.
+      ...(source.waitFor
+        ? {
+            browser_actions: [
+              { wait_for_element: { selector: source.waitFor, timeout: 25_000, visible: true } },
+            ],
+          }
+        : {}),
     }),
   });
 
@@ -81,7 +92,7 @@ async function crawlOnce(source: RateSource): Promise<CrawlResult> {
     body: html ?? content,
   });
 
-  return { source, rawBlobId, content, isMarkdown: Boolean(markdown) };
+  return { source, rawBlobId, content, isMarkdown: Boolean(markdown), html };
 }
 
 /** Crawl a source, retrying while the page comes back without rate data. */
