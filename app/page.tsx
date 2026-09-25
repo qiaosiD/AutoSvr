@@ -1,5 +1,6 @@
 import { formatCents, formatPct } from '@/lib/apy';
 import { bankName, BANKS_BY_ID } from '@/lib/banks';
+import Link from 'next/link';
 import { getDashboardData } from '@/lib/data';
 import { Timeline } from './components/Timeline';
 
@@ -41,6 +42,12 @@ export default async function Page() {
           <span className="rounded-full bg-white/5 px-3 py-1 text-xs text-zinc-400 ring-1 ring-white/10">
             {d.live ? 'Live data' : 'Seeded demo data'}
           </span>
+          <Link
+            href="/connect"
+            className="rounded-full bg-emerald-500 px-3 py-1 text-xs font-medium text-zinc-950 transition hover:bg-emerald-400"
+          >
+            Link an account
+          </Link>
         </div>
       </header>
 
