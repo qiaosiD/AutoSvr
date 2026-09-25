@@ -14,7 +14,9 @@ import { canParseWithSelectors, parseWithSelectors } from './selectors';
 // server, for instance — and the rest of this file is unchanged.
 const LIQUID_URL =
   process.env.LIQUID_URL ?? 'https://openrouter.ai/api/v1/chat/completions';
-const MODEL = process.env.LIQUID_MODEL ?? 'liquid/lfm-2.5-1.2b-instruct';
+// LFM2.5-2.6B is free on OpenRouter, which is the right default for a
+// per-page extraction task running once a day.
+const MODEL = process.env.LIQUID_MODEL ?? 'liquid/lfm-2.5-2.6b';
 
 const INSTRUCTION = `Extract every savings account rate on this page.
 Return ONLY a JSON array, no prose. Each element:
