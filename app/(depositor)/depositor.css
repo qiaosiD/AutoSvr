@@ -1,0 +1,58 @@
+/*
+ * The depositor-facing surfaces are light by design — people expect a bank to
+ * look like a bank. The root layout sets a dark ops theme for the internal
+ * dashboard, so everything here is scoped under .depositor and states its own
+ * colors rather than inheriting them.
+ */
+
+.depositor {
+  --ink: #0b1b33;
+  --ink-soft: #475569;
+  --ink-faint: #64748b;
+  --line: #e2e8f0;
+  --paper: #ffffff;
+  --wash: #f6f8fb;
+  --brand: #1d4ed8;
+  --brand-deep: #0b2a6b;
+  --gain: #047857;
+
+  min-height: 100vh;
+  background: var(--wash);
+  color: var(--ink);
+  font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto,
+    'Helvetica Neue', Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Money and rates line up column-wise only with tabular figures. On a
+   statement, ragged digits read as sloppy bookkeeping. */
+.depositor .tnum {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+}
+
+/* Links inherit surrounding color instead of browser blue.
+   This must sit inside @layer base: Tailwind v4 emits its utilities into
+   @layer utilities, and unlayered CSS beats *any* layered CSS no matter how
+   specific. Unlayered, this rule silently overrode text-white on every navy
+   link-button and rendered them navy-on-navy. */
+@layer base {
+  .depositor a {
+    color: inherit;
+  }
+}
+
+/* Print: a statement a customer opens is a statement they may print, and the
+   nav chrome has no business on paper. */
+@media print {
+  .depositor {
+    background: #fff;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .print-plain {
+    border: none !important;
+    box-shadow: none !important;
+  }
+}
