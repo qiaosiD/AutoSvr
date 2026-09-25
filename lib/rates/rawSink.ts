@@ -62,22 +62,31 @@ const fileSink: RawSink = {
   },
 };
 
+export const RAWTREE_BASE = 'https://api.rawtree.com';
+export const RAWTREE_TABLE = 'raw_crawls';
+
+/** Tables are created on first insert, so there is no schema to declare. */
 const rawTreeSink: RawSink = {
   async put(blob) {
     const id = randomUUID();
-    const res = await fetch('https://api.rawtree.com/v1/insert', {
+    const db = process.env.RAWTREE_DATABASE;
+    const url =
+      `${RAWTREE_BASE}/v1/tables/${RAWTREE_TABLE}` +
+      (db ? `?database=${encodeURIComponent(db)}` : '');
+
+    const res = await fetch(url, {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
         authorization: `Bearer ${process.env.RAWTREE_API_KEY}`,
       },
-      body: JSON.stringify({
-        database: process.env.RAWTREE_DATABASE ?? 'autosvr',
-        table: 'raw_crawls',
-        rows: [{ id, ...blob }],
-      }),
+      // The insert endpoint takes the rows themselves, not a wrapper object.
+      body: JSON.stringify([{ id, ...blob }]),
     });
-    if (!res.ok) throw new Error(`RawTree insert failed: ${res.status} ${await res.text()}`);
+
+    if (!res.ok) {
+      throw new Error(`RawTree insert failed: ${res.status} ${await res.text()}`);
+    }
     return id;
   },
 };
