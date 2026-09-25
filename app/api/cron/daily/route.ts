@@ -39,14 +39,15 @@ export async function GET(request: Request) {
 
   // Where the money is right now, per the ledger.
   const current = await getDashboardData(DEMO_CUSTOMER.id);
+  const today = new Date().toISOString().slice(0, 10);
   const decision = decideSweep(
     current.currentBankId || null,
     current.currentApr,
     observations,
     DEMO_CUSTOMER.principalCents,
+    today,
   );
 
-  const today = new Date().toISOString().slice(0, 10);
   const landingBank = decision.shouldMove ? decision.targetBankId : current.currentBankId;
   const landingApr = decision.shouldMove ? decision.targetApr : current.currentApr;
 

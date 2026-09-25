@@ -105,7 +105,7 @@ export function seedHistory(customer: Customer = DEMO_CUSTOMER): DemoHistory {
 
   for (const date of [...byDate.keys()].sort()) {
     const todays = byDate.get(date)!;
-    const decision = decideSweep(currentBankId, currentApr, todays, customer.principalCents);
+    const decision = decideSweep(currentBankId, currentApr, todays, customer.principalCents, date);
 
     if (decision.shouldMove) {
       sweeps.push({

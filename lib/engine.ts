@@ -3,6 +3,7 @@
 
 import { BANKS_BY_ID } from './banks';
 import { dailyInterestCents } from './apy';
+import { closedReason, isBankingDay, nextBankingDay } from './calendar';
 import type { Accrual, Customer, RateObservation, SweepEvent } from './types';
 
 /**
@@ -38,7 +39,24 @@ export function decideSweep(
   currentApr: number,
   observations: RateObservation[],
   balanceCents: number,
+  /** The day the decision is being made. Defaults to today. */
+  date: string = new Date().toISOString().slice(0, 10),
 ): SweepDecision {
+  // ACH only moves money on days the Federal Reserve is open. Deciding to
+  // transfer on a Saturday produces a settlement date that cannot happen and a
+  // statement claiming a transfer landed on a weekend. Hold instead — the next
+  // run on a banking day re-evaluates and moves then if it still pays. No queue
+  // is needed, because the decision is re-derived from scratch every day.
+  if (!isBankingDay(date)) {
+    return {
+      shouldMove: false,
+      targetBankId: currentBankId ?? '',
+      targetApr: currentApr,
+      currentApr,
+      reason: `Banks closed for ${closedReason(date)} — ACH resumes ${nextBankingDay(date)}`,
+    };
+  }
+
   const best = bestRate(observations, balanceCents);
 
   if (!best) {
