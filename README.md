@@ -74,7 +74,7 @@ progressively light up real behavior:
 | `NIMBLE_API_KEY` | Real crawls of bank rate pages |
 | `LIQUID_API_KEY` | Real rate parsing |
 | `PLAID_*` | Account linking + simulated ACH |
-| `RAW_SINK=rawtree` | RawTree as the raw crawl landing zone |
+| `RAW_SINK=rawtree` + `RAWTREE_API_KEY` | RawTree as the raw crawl landing zone |
 
 Copy `.env.example` to `.env.local` and fill in what you have.
 
