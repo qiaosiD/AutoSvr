@@ -60,10 +60,22 @@ export async function query<T>(sql: string): Promise<T[]> {
   return (json?.data ?? []) as T[];
 }
 
+/**
+ * The RawTree cluster's `default` database is shared across the whole event —
+ * roughly a hundred tables from other teams sit beside ours. Bare names like
+ * `daily_accruals` and `sweep_events` are collision bait there: any other team
+ * modelling a ledger reaches for the same words, and MergeTree will happily
+ * accept their rows into our table. `autosvr_healthcheck` was already
+ * namespaced; these had simply missed the convention.
+ *
+ * rawCrawls stays unprefixed for now because the crawl path is being worked on
+ * in a parallel session and is mid-test against that table. Worth renaming once
+ * that settles.
+ */
 export const TABLES = {
-  rates: 'rate_observations',
-  sweeps: 'sweep_events',
-  accruals: 'daily_accruals',
-  payouts: 'interest_payouts',
+  rates: 'autosvr_rate_observations',
+  sweeps: 'autosvr_sweep_events',
+  accruals: 'autosvr_daily_accruals',
+  payouts: 'autosvr_interest_payouts',
   rawCrawls: 'raw_crawls',
 } as const;

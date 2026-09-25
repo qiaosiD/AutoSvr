@@ -12,6 +12,7 @@
  */
 
 import { seedHistory, DEMO_CUSTOMER } from '../lib/demo/seed';
+import { TABLES } from '../lib/rawtree';
 import { formatCents } from '../lib/apy';
 
 // A standalone tsx run doesn't get Next's env loading.
@@ -110,14 +111,23 @@ async function assertLedgerEmpty(): Promise<void> {
   const res = await fetch(`${BASE}/v1/query${dbParam}`, {
     method: 'POST',
     headers: { 'content-type': 'application/json', authorization: `Bearer ${TOKEN}` },
-    body: JSON.stringify({ sql: 'SELECT count() AS n FROM daily_accruals' }),
+    body: JSON.stringify({ sql: `SELECT count() AS n FROM ${TABLES.accruals}` }),
   });
 
   if (!res.ok) {
     const body = await res.text();
     // A table that has never been written to does not exist yet — that is an
     // empty ledger, which is exactly the state we want to proceed from.
-    if (body.includes('Unknown table') || body.includes("doesn't exist")) return;
+    // RawTree words this as "Table not found."; ClickHouse says "Unknown table".
+    // Missing the former made this fail closed on a first run and pushed you
+    // toward --force, which is the one flag that can silently double the data.
+    if (
+      body.includes('Unknown table') ||
+      body.includes("doesn't exist") ||
+      body.includes('Table not found')
+    ) {
+      return;
+    }
     die(
       `Couldn't check for existing rows (HTTP ${res.status}).\n` +
         `  A write-only key cannot read. Either use a Read/write key, or re-run\n` +
@@ -131,7 +141,7 @@ async function assertLedgerEmpty(): Promise<void> {
   const n = Number(data?.[0]?.n ?? 0);
   if (n > 0) {
     die(
-      `daily_accruals already holds ${n} rows.\n` +
+      `${TABLES.accruals} already holds ${n} rows.\n` +
         `  Backfilling again would double the dashboard's numbers.\n` +
         `  To start over, drop the tables in the RawTree dashboard, or re-run\n` +
         `  with --force if you really do want to append.`,
@@ -159,9 +169,9 @@ async function main() {
 
   if (!DRY_RUN) await assertLedgerEmpty();
 
-  await push('rate_observations', rates);
-  await push('sweep_events', sweeps);
-  await push('daily_accruals', accruals);
+  await push(TABLES.rates, rates);
+  await push(TABLES.sweeps, sweeps);
+  await push(TABLES.accruals, accruals);
 
   if (DRY_RUN) {
     console.log('\nDry run — nothing sent. Drop --dry-run to push.\n');
