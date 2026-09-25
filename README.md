@@ -17,12 +17,12 @@ Built at the Long Horizon Agents Hack, September 2026.
 ## How it works
 
 ```
-  Nimble          Liquid AI              Tinybird              Next.js
-  ──────          ─────────              ────────              ───────
+  Nimble          Liquid AI              RawTree               Next.js
+  ──────          ─────────              ───────               ───────
   crawl bank  →   parse HTML into    →   rate history,    →    dashboard
   rate pages      structured rates       ledger, accruals       + timeline
-     │
-     └─→ raw crawl blobs ──→ file (default) or RawTree
+     │                                         ▲
+     └─────────→ raw crawl blobs ──────────────┘
 ```
 
 - **Nimble** — bank rate pages are JS-rendered and rate-limit hard; plain
@@ -30,8 +30,8 @@ Built at the Long Horizon Agents Hack, September 2026.
 - **Liquid AI** — an LFM call with a strict output shape survives the layout
   changes that break regex extraction, and correctly separates promotional
   rates from ongoing ones.
-- **Tinybird** — everything time-shaped: rate history per bank per day, sweep
-  events, daily accruals. Each dashboard panel is one published pipe.
+- **RawTree** — the ledger: rate history per bank per day, sweep events, daily
+  accruals. It is ClickHouse underneath, so the compounding math runs in SQL.
 
 Raw crawl payloads land in a schemaless sink before anything interprets them,
 so a wrong rate on screen can be traced back to the exact bytes that produced
@@ -70,37 +70,44 @@ progressively light up real behavior:
 
 | Variable | Unlocks |
 |---|---|
-| `TINYBIRD_TOKEN` | Live ledger instead of seeded data |
+| `RAWTREE_API_KEY` | Live ledger instead of seeded data |
 | `NIMBLE_API_KEY` | Real crawls of bank rate pages |
 | `LIQUID_API_KEY` | Real rate parsing |
 | `PLAID_*` | Account linking + simulated ACH |
-| `RAW_SINK=rawtree` + `RAWTREE_API_KEY` | RawTree as the raw crawl landing zone |
+| `RAW_SINK=rawtree` | Send raw crawl blobs to RawTree too |
 
 Copy `.env.example` to `.env.local` and fill in what you have.
 
-## Tinybird setup
+## RawTree setup
 
-```bash
-npm i -g @tinybirdco/tinybird
-tb login
-tb push tinybird/datasources/*.datasource tinybird/pipes/*.pipe
+Create a Read/write key in the RawTree dashboard and put it in `.env.local`:
+
+```
+RAWTREE_API_KEY=rt_...
+RAWTREE_DATABASE=default
 ```
 
-`tb push` creates an `autosvr_ingest` token from the `TOKEN ... APPEND` lines
-in the datasource files — the Events API rejects writes without that scope.
-Put it in `.env.local` as `TINYBIRD_TOKEN`, along with your workspace's
-regional `TINYBIRD_HOST`.
-
-Then load the seeded history so the live dashboard isn't empty:
+The database must already exist — a read/write key can insert into one but
+cannot create one, and RawTree reports that as `400 Database not found`. List
+the ones your key can reach:
 
 ```bash
-npx tsx scripts/backfill.mts --dry-run   # inspect first
-npx tsx scripts/backfill.mts             # send it
+curl -H "Authorization: Bearer $RAWTREE_API_KEY" https://api.rawtree.com/v1/databases
 ```
 
-The datasources are MergeTree and do not deduplicate, so the script refuses to
-run against a non-empty ledger — backfilling twice would double every number on
-the dashboard. Truncate and re-run, or pass `--force` deliberately.
+Confirm the whole setup, then load the seeded history:
+
+```bash
+npm run rawtree:check
+npm run backfill -- --dry-run
+npm run backfill
+```
+
+Tables are created on first insert, so there is nothing to migrate. Because
+ingestion is schemaless every column arrives as ClickHouse `Dynamic`, which
+most aggregates refuse to touch — `lib/queries.ts` casts every column
+explicitly, and `argMax` fails without it.
+
 
 ## Verify the math
 
@@ -126,10 +133,10 @@ lib/apy.ts          the APY math, isolated and testable
 lib/engine.ts       sweep decision + threshold
 lib/banks.ts        bank universe with FDIC cert numbers
 lib/rates/          nimble crawl → liquid parse → raw sink
-lib/tinybird.ts     ingest + pipe queries
+lib/rawtree.ts      insert + query client
+lib/queries.ts      the SQL behind every dashboard number
 lib/data.ts         single read path; live or seeded, same shape
 lib/demo/seed.ts    deterministic history, replayed through the real engine
-tinybird/           datasource + pipe definitions
 app/                dashboard and the daily cron route
 ```
 

@@ -1,6 +1,6 @@
 /**
- * Push the seeded 90-day history into Tinybird so the live dashboard has
- * something to show the moment TINYBIRD_TOKEN is set.
+ * Push the seeded 90-day history into RawTree so the live dashboard has
+ * something to show the moment RAWTREE_API_KEY is set.
  *
  *   npx tsx scripts/backfill.mts --dry-run   # show what would be sent
  *   npx tsx scripts/backfill.mts             # send it
@@ -24,8 +24,10 @@ for (const file of ['.env.local', '.env']) {
   }
 }
 
-const HOST = process.env.TINYBIRD_HOST ?? 'https://api.tinybird.co';
-const TOKEN = process.env.TINYBIRD_TOKEN;
+const BASE = process.env.RAWTREE_BASE ?? 'https://api.rawtree.com';
+const TOKEN = process.env.RAWTREE_API_KEY;
+const DB = process.env.RAWTREE_DATABASE;
+const dbParam = DB ? `?database=${encodeURIComponent(DB)}` : '';
 const DRY_RUN = process.argv.includes('--dry-run');
 const FORCE = process.argv.includes('--force');
 const CHUNK = 500;
@@ -35,12 +37,12 @@ function die(msg: string): never {
   process.exit(1);
 }
 
-/** POST one chunk of NDJSON to the Events API. */
+/** POST one chunk of rows to a table. */
 async function sendChunk(datasource: string, rows: unknown[]): Promise<number> {
-  const res = await fetch(`${HOST}/v0/events?name=${datasource}`, {
+  const res = await fetch(`${BASE}/v1/tables/${datasource}${dbParam}`, {
     method: 'POST',
-    headers: { authorization: `Bearer ${TOKEN}` },
-    body: rows.map((r) => JSON.stringify(r)).join('\n'),
+    headers: { 'content-type': 'application/json', authorization: `Bearer ${TOKEN}` },
+    body: JSON.stringify(rows),
   });
 
   const text = await res.text();
@@ -48,29 +50,33 @@ async function sendChunk(datasource: string, rows: unknown[]): Promise<number> {
     if (res.status === 403) {
       die(
         `403 from ${datasource}.\n` +
-          `  Your token lacks DATASOURCE:APPEND for this datasource.\n` +
-          `  Use the token named "autosvr_ingest" that \`tb push\` creates from\n` +
-          `  the TOKEN ... APPEND lines in tinybird/datasources/*.datasource.`,
+          `  This key cannot write. A "Read only" key cannot ingest —\n` +
+          `  create a Read/write or Write only key in the RawTree dashboard.`,
       );
     }
-    if (res.status === 404) {
+    if (res.status === 400 && text.includes('Database not found')) {
       die(
-        `404 from ${datasource}.\n` +
-          `  That datasource doesn't exist yet. Run:\n` +
-          `    tb push tinybird/datasources/*.datasource tinybird/pipes/*.pipe`,
+        `Database "${DB}" does not exist on this cluster.\n` +
+          `  A read/write key can insert into a database but cannot create one.\n` +
+          `  List the ones you can reach:\n` +
+          `    curl -H "Authorization: Bearer $RAWTREE_API_KEY" ${BASE}/v1/databases`,
       );
     }
     die(`${res.status} from ${datasource}: ${text}`);
   }
 
-  let quarantined = 0;
+  // RawTree reports {"inserted": n}; there is no quarantine concept.
   try {
     const body = JSON.parse(text);
-    quarantined = body.quarantined_rows ?? 0;
+    if (typeof body.inserted === 'number' && body.inserted !== rows.length) {
+      console.warn(
+        `\n⚠ ${datasource}: sent ${rows.length} rows, RawTree reported ${body.inserted} inserted.`,
+      );
+    }
   } catch {
     // Non-JSON success body; nothing to read.
   }
-  return quarantined;
+  return 0;
 }
 
 async function push(datasource: string, rows: unknown[]): Promise<void> {
@@ -82,27 +88,18 @@ async function push(datasource: string, rows: unknown[]): Promise<void> {
     return;
   }
 
-  let quarantined = 0;
   for (let i = 0; i < rows.length; i += CHUNK) {
-    quarantined += await sendChunk(datasource, rows.slice(i, i + CHUNK));
+    await sendChunk(datasource, rows.slice(i, i + CHUNK));
     process.stdout.write(
       `\r  ${datasource.padEnd(20)} ${Math.min(i + CHUNK, rows.length)}/${rows.length}`,
     );
   }
-  const warn = quarantined > 0 ? `  ⚠ ${quarantined} quarantined` : '';
-  console.log(`\r  ${datasource.padEnd(20)} ${String(rows.length).padStart(5)} rows ✓${warn}`);
-
-  if (quarantined > 0) {
-    console.log(
-      `    Quarantined rows failed schema validation. Inspect them with:\n` +
-        `      tb sql "SELECT * FROM ${datasource}_quarantine LIMIT 5"`,
-    );
-  }
+  console.log(`\r  ${datasource.padEnd(20)} ${String(rows.length).padStart(5)} rows ✓`);
 }
 
 /**
- * Refuse to double-count. Needs read scope, which the append-only ingest token
- * won't have — in that case say so plainly rather than proceeding blind.
+ * Refuse to double-count. Needs a key that can read — say so plainly rather
+ * than proceeding blind if it cannot.
  */
 async function assertLedgerEmpty(): Promise<void> {
   if (FORCE) {
@@ -110,18 +107,23 @@ async function assertLedgerEmpty(): Promise<void> {
     return;
   }
 
-  const res = await fetch(
-    `${HOST}/v0/sql?q=${encodeURIComponent('SELECT count() AS n FROM daily_accruals FORMAT JSON')}`,
-    { headers: { authorization: `Bearer ${TOKEN}` } },
-  );
+  const res = await fetch(`${BASE}/v1/query${dbParam}`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', authorization: `Bearer ${TOKEN}` },
+    body: JSON.stringify({ sql: 'SELECT count() AS n FROM daily_accruals' }),
+  });
 
   if (!res.ok) {
+    const body = await res.text();
+    // A table that has never been written to does not exist yet — that is an
+    // empty ledger, which is exactly the state we want to proceed from.
+    if (body.includes('Unknown table') || body.includes("doesn't exist")) return;
     die(
       `Couldn't check for existing rows (HTTP ${res.status}).\n` +
-        `  The ingest token is append-only, so it can't read.\n` +
-        `  Either run with an admin token, or re-run with --force if you are\n` +
-        `  certain the ledger is empty. Backfilling twice doubles every number\n` +
-        `  on the dashboard.`,
+        `  A write-only key cannot read. Either use a Read/write key, or re-run\n` +
+        `  with --force if you are certain the ledger is empty. Backfilling\n` +
+        `  twice doubles every number on the dashboard.\n` +
+        `  Response: ${body}`,
     );
   }
 
@@ -131,11 +133,8 @@ async function assertLedgerEmpty(): Promise<void> {
     die(
       `daily_accruals already holds ${n} rows.\n` +
         `  Backfilling again would double the dashboard's numbers.\n` +
-        `  To start over:\n` +
-        `    tb datasource truncate daily_accruals\n` +
-        `    tb datasource truncate rate_observations\n` +
-        `    tb datasource truncate sweep_events\n` +
-        `  Or re-run with --force if you really want to append.`,
+        `  To start over, drop the tables in the RawTree dashboard, or re-run\n` +
+        `  with --force if you really do want to append.`,
     );
   }
 }
@@ -143,7 +142,7 @@ async function assertLedgerEmpty(): Promise<void> {
 async function main() {
   if (!TOKEN && !DRY_RUN) {
     die(
-      'TINYBIRD_TOKEN is not set.\n' +
+      'RAWTREE_API_KEY is not set.\n' +
         '  Put it in .env.local, or use --dry-run to see what would be sent.',
     );
   }
@@ -152,7 +151,8 @@ async function main() {
   const earned = accruals.reduce((s, a) => s + a.accruedCents, 0);
 
   console.log(`\nAutoSvr backfill${DRY_RUN ? ' (dry run)' : ''}`);
-  console.log(`  host      ${HOST}`);
+  console.log(`  base      ${BASE}`);
+  console.log(`  database  ${DB ?? '(cluster default)'}`);
   console.log(`  customer  ${DEMO_CUSTOMER.id} (${DEMO_CUSTOMER.name})`);
   console.log(`  window    ${accruals[0]?.date} → ${accruals.at(-1)?.date}`);
   console.log(`  earned    ${formatCents(earned)} across ${sweeps.length} moves\n`);
@@ -169,8 +169,6 @@ async function main() {
   }
 
   console.log('\n✓ Backfill complete.');
-  console.log('  Tinybird ingestion is async; give it a few seconds, then:');
-  console.log('    tb sql "SELECT count() FROM daily_accruals"');
   console.log('  Restart the dev server and the dashboard should read "Live data".\n');
 }
 

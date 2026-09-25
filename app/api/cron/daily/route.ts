@@ -7,7 +7,7 @@ import { liquidConfigured, parseRates } from '@/lib/rates/parse';
 import { decideSweep } from '@/lib/engine';
 import { DEMO_CUSTOMER } from '@/lib/demo/seed';
 import { buildAccrual } from '@/lib/engine';
-import { ingestAccruals, ingestRates, ingestSweeps, tinybirdConfigured } from '@/lib/tinybird';
+import { insert, rawtreeConfigured, TABLES } from '@/lib/rawtree';
 import { getDashboardData } from '@/lib/data';
 import type { RateObservation } from '@/lib/types';
 
@@ -50,10 +50,10 @@ export async function GET(request: Request) {
   const landingBank = decision.shouldMove ? decision.targetBankId : current.currentBankId;
   const landingApr = decision.shouldMove ? decision.targetApr : current.currentApr;
 
-  if (tinybirdConfigured()) {
-    await ingestRates(observations);
+  if (rawtreeConfigured()) {
+    await insert(TABLES.rates, observations);
     if (decision.shouldMove) {
-      await ingestSweeps([
+      await insert(TABLES.sweeps, [
         {
           occurredAt: new Date().toISOString(),
           customerId: DEMO_CUSTOMER.id,
@@ -66,7 +66,7 @@ export async function GET(request: Request) {
       ]);
     }
     if (landingBank) {
-      await ingestAccruals([buildAccrual(DEMO_CUSTOMER, landingBank, landingApr, today)]);
+      await insert(TABLES.accruals, [buildAccrual(DEMO_CUSTOMER, landingBank, landingApr, today)]);
     }
   }
 
@@ -76,6 +76,6 @@ export async function GET(request: Request) {
     ratesParsed: observations.length,
     moved: decision.shouldMove,
     decision,
-    persisted: tinybirdConfigured(),
+    persisted: rawtreeConfigured(),
   });
 }

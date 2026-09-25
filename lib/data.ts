@@ -1,11 +1,12 @@
-// Single read path for the dashboard. Live Tinybird when a token is present,
+// Single read path for the dashboard. Live RawTree when a key is present,
 // the deterministic seed otherwise — same shape either way, so the UI never
 // knows which one it got and the demo never shows an empty state.
 
 import { blendedApy } from './apy';
 import { BASELINE_APR } from './banks';
 import { DEMO_CUSTOMER, seedHistory } from './demo/seed';
-import { query, tinybirdConfigured } from './tinybird';
+import * as Q from './queries';
+import { query, rawtreeConfigured } from './rawtree';
 
 export interface TimelineDay {
   date: string;
@@ -95,7 +96,7 @@ function fromSeed(): DashboardData {
 }
 
 export async function getDashboardData(customerId = 'cus_demo'): Promise<DashboardData> {
-  if (!tinybirdConfigured()) return fromSeed();
+  if (!rawtreeConfigured()) return fromSeed();
 
   try {
     const [summaryRows, timeline, sweeps, leaderboard] = await Promise.all([
@@ -106,10 +107,10 @@ export async function getDashboardData(customerId = 'cus_demo'): Promise<Dashboa
         currentBankId: string;
         currentApr: number;
         blendedApy: number;
-      }>('accrued_summary', { customerId }),
-      query<TimelineDay>('customer_timeline', { customerId }),
-      query<SweepRow>('sweep_log', { customerId }),
-      query<LeaderRow>('best_rate_today'),
+      }>(Q.accruedSummary(customerId)),
+      query<TimelineDay>(Q.customerTimeline(customerId)),
+      query<SweepRow>(Q.sweepLog(customerId)),
+      query<LeaderRow>(Q.bestRateToday()),
     ]);
 
     const s = summaryRows[0];
@@ -131,7 +132,7 @@ export async function getDashboardData(customerId = 'cus_demo'): Promise<Dashboa
       leaderboard,
     };
   } catch (err) {
-    console.error('[data] Tinybird read failed, falling back to seed:', err);
+    console.error('[data] RawTree read failed, falling back to seed:', err);
     return fromSeed();
   }
 }

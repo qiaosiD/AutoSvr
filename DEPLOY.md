@@ -2,7 +2,7 @@
 
 The app is deploy-ready as-is. With **zero environment variables** it serves the
 deterministic seeded data (90 days, `$511.77` accrued) and every page renders —
-so you can get a live URL before Tinybird, Nimble or Liquid are wired up.
+so you can get a live URL before RawTree, Nimble or Liquid are wired up.
 
 ## 1. Log in and link
 
@@ -35,14 +35,14 @@ npx vercel --prod
 None are required. Add them only as each integration comes online:
 
 ```bash
-npx vercel env add TINYBIRD_TOKEN production
-npx vercel env add TINYBIRD_HOST production
+npx vercel env add RAWTREE_API_KEY production
+npx vercel env add RAWTREE_DATABASE production
 npx vercel env add NIMBLE_API_KEY production
 npx vercel env add LIQUID_API_KEY production
 ```
 
 The dashboard badge flips from "Seeded demo data" to "Live data" once
-`TINYBIRD_TOKEN` and `TINYBIRD_HOST` are set and the backfill has run.
+`RAWTREE_API_KEY` is set and the backfill has run.
 
 ## The daily cron
 
