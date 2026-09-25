@@ -8,8 +8,13 @@ import type { RateObservation } from '../types';
 import type { CrawlResult } from './nimble';
 import { canParseWithSelectors, parseWithSelectors } from './selectors';
 
-const LIQUID_URL = 'https://api.liquid.ai/v1/chat/completions';
-const MODEL = process.env.LIQUID_MODEL ?? 'lfm-3b';
+// Liquid publishes weights rather than a hosted inference API, so their models
+// are reached through OpenRouter, which is OpenAI-compatible. Point LIQUID_URL
+// at anything else that speaks the same protocol — a local Ollama or vLLM
+// server, for instance — and the rest of this file is unchanged.
+const LIQUID_URL =
+  process.env.LIQUID_URL ?? 'https://openrouter.ai/api/v1/chat/completions';
+const MODEL = process.env.LIQUID_MODEL ?? 'liquid/lfm-2.5-1.2b-instruct';
 
 const INSTRUCTION = `Extract every savings account rate on this page.
 Return ONLY a JSON array, no prose. Each element:
@@ -54,6 +59,9 @@ async function parseWithModel(crawl: CrawlResult): Promise<RateObservation[]> {
     headers: {
       'content-type': 'application/json',
       authorization: `Bearer ${process.env.LIQUID_API_KEY}`,
+      // OpenRouter attributes traffic with these; harmless elsewhere.
+      'HTTP-Referer': 'https://github.com/qiaosiD/AutoSvr',
+      'X-Title': 'AutoSvr',
     },
     body: JSON.stringify({
       model: MODEL,
@@ -65,7 +73,9 @@ async function parseWithModel(crawl: CrawlResult): Promise<RateObservation[]> {
     }),
   });
 
-  if (!res.ok) throw new Error(`Liquid AI parse failed: ${res.status}`);
+  if (!res.ok) {
+    throw new Error(`Liquid AI parse failed: ${res.status} ${await res.text()}`);
+  }
 
   const json = await res.json();
   const content: string = json?.choices?.[0]?.message?.content ?? '[]';
@@ -103,6 +113,10 @@ function slug(name: string): string {
 
 export function liquidConfigured(): boolean {
   return Boolean(process.env.LIQUID_API_KEY);
+}
+
+export function liquidTarget(): { url: string; model: string } {
+  return { url: LIQUID_URL, model: MODEL };
 }
 
 
