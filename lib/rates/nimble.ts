@@ -122,6 +122,26 @@ async function crawlOne(source: RateSource): Promise<CrawlResult> {
   return last!;
 }
 
+/**
+ * Crawl an arbitrary URL — a single bank's rate page rather than a configured
+ * aggregator. A bank page lists one or two products, so the three-distinct-
+ * rates test that guards aggregator crawls would reject a perfectly good page;
+ * this path accepts what it gets and lets the parser judge.
+ */
+export async function crawlUrl(url: string, waitFor?: string): Promise<CrawlResult> {
+  const parsed = new URL(url);
+  if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+    throw new Error(`Only http and https URLs can be crawled; got ${parsed.protocol}`);
+  }
+
+  return crawlOnce({
+    id: `adhoc_${parsed.hostname.replace(/[^a-z0-9]+/gi, '_')}`,
+    url,
+    kind: 'bank_page',
+    waitFor,
+  });
+}
+
 /** Crawl every source. One bad source does not sink the run. */
 export async function crawlAll(): Promise<CrawlResult[]> {
   const settled = await Promise.allSettled(SOURCES.map(crawlOne));
