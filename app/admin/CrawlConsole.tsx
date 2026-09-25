@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { formatCents, formatPct } from '@/lib/apy';
-import type { CrawlReport } from '../api/admin/crawl/route';
+import type { CrawlMessage, CrawlReport } from '../api/admin/crawl/route';
 
 const SLOTS = 5;
 
@@ -19,7 +19,8 @@ export function CrawlConsole() {
   const [urls, setUrls] = useState<string[]>(Array(SLOTS).fill(''));
   const [waitFor, setWaitFor] = useState('');
   const [running, setRunning] = useState(false);
-  const [reports, setReports] = useState<CrawlReport[] | null>(null);
+  const [reports, setReports] = useState<CrawlReport[]>([]);
+  const [pending, setPending] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const filled = urls.map((u) => u.trim()).filter(Boolean);
@@ -27,20 +28,56 @@ export function CrawlConsole() {
   async function run() {
     setRunning(true);
     setError(null);
-    setReports(null);
+    setReports([]);
+    setPending(filled);
+
     try {
       const res = await fetch('/api/admin/crawl', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ urls: filled, waitFor: waitFor.trim() || undefined }),
       });
-      const body = await res.json();
-      if (!res.ok) throw new Error(body.error ?? `Request failed (${res.status})`);
-      setReports(body.reports);
+
+      // Errors come back as plain JSON rather than a stream.
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error ?? `Request failed (${res.status})`);
+      }
+      if (!res.body) throw new Error('The server returned no stream');
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      // NDJSON: a chunk may split a line, so hold the remainder until the
+      // next read completes it.
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        const lines = buffer.split('\n');
+        buffer = lines.pop() ?? '';
+
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          let msg: CrawlMessage;
+          try {
+            msg = JSON.parse(line);
+          } catch {
+            continue;
+          }
+          if (msg.type === 'report') {
+            setReports((prev) => [...prev, msg.report]);
+            setPending((prev) => prev.filter((u) => u !== msg.report.url));
+          }
+        }
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setRunning(false);
+      setPending([]);
     }
   }
 
@@ -103,20 +140,28 @@ export function CrawlConsole() {
         </p>
       </section>
 
-      {running && (
-        <p className="text-sm text-zinc-400">
-          Crawling {filled.length} page{filled.length === 1 ? '' : 's'}. Rendering
-          takes a few seconds each and they run in parallel.
-        </p>
-      )}
-
       {error && (
         <div className="rounded-xl bg-rose-500/10 p-4 text-sm text-rose-300 ring-1 ring-rose-500/30">
           {error}
         </div>
       )}
 
-      {reports?.map((r) => <Report key={r.url} report={r} />)}
+      {reports.map((r) => <Report key={r.url} report={r} />)}
+
+      {pending.map((url) => (
+        <section
+          key={url}
+          className="flex items-center gap-3 rounded-xl bg-white/[0.03] px-5 py-4 ring-1 ring-white/5"
+        >
+          <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-amber-400" />
+          <span className="truncate font-mono text-[13px] text-zinc-500">{url}</span>
+          <span className="ml-auto shrink-0 text-xs text-zinc-600">rendering…</span>
+        </section>
+      ))}
+
+      {running && reports.length === 0 && pending.length === 0 && (
+        <p className="text-sm text-zinc-400">Starting…</p>
+      )}
     </div>
   );
 }
