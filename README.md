@@ -86,6 +86,22 @@ tb login
 tb push tinybird/datasources/*.datasource tinybird/pipes/*.pipe
 ```
 
+`tb push` creates an `autosvr_ingest` token from the `TOKEN ... APPEND` lines
+in the datasource files — the Events API rejects writes without that scope.
+Put it in `.env.local` as `TINYBIRD_TOKEN`, along with your workspace's
+regional `TINYBIRD_HOST`.
+
+Then load the seeded history so the live dashboard isn't empty:
+
+```bash
+npx tsx scripts/backfill.mts --dry-run   # inspect first
+npx tsx scripts/backfill.mts             # send it
+```
+
+The datasources are MergeTree and do not deduplicate, so the script refuses to
+run against a non-empty ledger — backfilling twice would double every number on
+the dashboard. Truncate and re-run, or pass `--force` deliberately.
+
 ## Verify the math
 
 ```bash

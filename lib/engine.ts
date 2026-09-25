@@ -74,14 +74,21 @@ export function decideSweep(
     };
   }
 
+  // No current bank means this is the initial placement, not a competitive
+  // move — describing it as beating the old savings account by 400+bp is true
+  // but reads strangely in the move log.
+  const reason = currentBankId
+    ? `${best.bankName} at ${(best.apy * 100).toFixed(2)}% beats current by ${(
+        gain * 10_000
+      ).toFixed(0)}bp`
+    : `Initial placement at the top rate, ${(best.apy * 100).toFixed(2)}%`;
+
   return {
     shouldMove: true,
     targetBankId: best.bankId,
     targetApr: best.apy,
     currentApr,
-    reason: `${best.bankName} at ${(best.apy * 100).toFixed(2)}% beats current by ${(
-      gain * 10_000
-    ).toFixed(0)}bp`,
+    reason,
   };
 }
 
