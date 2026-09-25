@@ -15,8 +15,12 @@ import { canParseWithSelectors, parseWithSelectors } from './selectors';
 const LIQUID_URL =
   process.env.LIQUID_URL ?? 'https://openrouter.ai/api/v1/chat/completions';
 // LFM2.5-2.6B is free on OpenRouter, which is the right default for a
-// per-page extraction task running once a day.
-const MODEL = process.env.LIQUID_MODEL ?? 'liquid/lfm-2.5-2.6b';
+// per-page extraction task running once a day. The ":free" suffix is part of
+// the slug — without it OpenRouter answers "No endpoints found", which reads
+// like the model does not exist rather than like a routing tier.
+// Check what is actually servable with:
+//   curl -s https://openrouter.ai/api/v1/models -H "Authorization: Bearer $KEY" 
+const MODEL = process.env.LIQUID_MODEL ?? 'liquid/lfm-2.5-2.6b:free';
 
 const INSTRUCTION = `Extract every savings account rate on this page.
 Return ONLY a JSON array, no prose. Each element:
@@ -32,18 +36,33 @@ Rules:
   say — do not infer it.`;
 
 /**
+ * How much of the page reaches the model.
+ *
+ * This was 24,000 characters, which silently broke the product's core claim.
+ * Aggregators put sponsored listings first and the organic best-rate table
+ * lower down — on DepositAccounts the highest rate sits at character 23,597
+ * and the next two at 24,490 and 25,389. The model dutifully returned the
+ * sponsored rates, which look entirely plausible and are simply not the best
+ * ones available. Nothing downstream could tell the difference.
+ *
+ * LFM2.5-2.6B has a 65,536-token window, so 120,000 characters (~30k tokens)
+ * fits several times over and leaves ample room for the response.
+ */
+const MAX_INPUT_CHARS = Number(process.env.LIQUID_MAX_INPUT_CHARS ?? 120_000);
+
+/**
  * Nimble can return markdown directly, which is already clean enough for the
  * model. Only fall back to stripping when we got raw HTML.
  */
 function toText(content: string, isMarkdown: boolean): string {
-  if (isMarkdown) return content.trim().slice(0, 24_000);
+  if (isMarkdown) return content.trim().slice(0, MAX_INPUT_CHARS);
   return content
     .replace(/<script[\s\S]*?<\/script>/gi, ' ')
     .replace(/<style[\s\S]*?<\/style>/gi, ' ')
     .replace(/<[^>]+>/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
-    .slice(0, 24_000);
+    .slice(0, MAX_INPUT_CHARS);
 }
 
 interface ParsedRow {
@@ -93,8 +112,40 @@ async function parseWithModel(crawl: CrawlResult): Promise<RateObservation[]> {
   if (!Array.isArray(rows)) return [];
 
   const observedAt = new Date().toISOString();
-  return rows
-    .filter((r) => r && typeof r.apy === 'number' && r.apy > 0 && r.apy < 0.25)
+
+  // Check against both formats: the model reads the markdown, but a figure
+  // dropped by the markdown conversion is still legitimate if the HTML has it.
+  const source = `${crawl.content}\n${crawl.html}`;
+
+  const wellFormed = rows.filter(
+    (r) => r && typeof r.apy === 'number' && r.apy > 0 && r.apy < 0.25,
+  );
+  const grounded = wellFormed.filter((r) => groundedInSource(r.apy, source));
+
+  const invented = wellFormed.length - grounded.length;
+  if (invented > 0) {
+    const examples = wellFormed
+      .filter((r) => !groundedInSource(r.apy, source))
+      .slice(0, 3)
+      .map((r) => `${r.bankName} ${(r.apy * 100).toFixed(2)}%`)
+      .join(', ');
+    console.error(
+      `[parse] ${crawl.source.id}: discarded ${invented}/${wellFormed.length} ` +
+        `model rates absent from the page (${examples})`,
+    );
+  }
+
+  // If the model got most of them wrong it cannot be trusted for the rest
+  // either. Returning nothing hands the page to the selector parser.
+  if (wellFormed.length > 0 && grounded.length < wellFormed.length * 0.7) {
+    console.error(
+      `[parse] ${crawl.source.id}: model output rejected — only ` +
+        `${grounded.length}/${wellFormed.length} rates were actually on the page`,
+    );
+    return [];
+  }
+
+  return grounded
     .map((r) => ({
       observedAt,
       bankId: slug(r.bankName),
@@ -107,6 +158,35 @@ async function parseWithModel(crawl: CrawlResult): Promise<RateObservation[]> {
       sourceUrl: crawl.source.url,
       rawBlobId: crawl.rawBlobId,
     }));
+}
+
+/**
+ * Reject any rate that does not appear verbatim in the page it supposedly came
+ * from.
+ *
+ * This is not defensive tidiness. LFM2.5-2.6B, given a 53,000-character rate
+ * page, returned "Live Oak Bank — 4.80%". The bank is real and on the page;
+ * the rate is not, and the string "4.8%" appears nowhere in the source. It
+ * also reported Elevault at 4.60% where the page says 4.34%. Every value was
+ * plausible, and nothing downstream could have caught it: the engine would
+ * have moved a customer's balance to a bank on the strength of a rate no one
+ * was offering.
+ *
+ * A model may only report what the page actually says, and the page is the
+ * arbiter. Small models make this check mandatory rather than optional.
+ */
+function groundedInSource(apy: number, source: string): boolean {
+  const pct = apy * 100;
+  // Match how the figure might legitimately be written: 4.34%, 4.34 %, 4.3%.
+  const candidates = new Set([
+    pct.toFixed(2),
+    pct.toFixed(1),
+    pct.toFixed(2).replace(/0$/, ''),
+    String(pct),
+  ]);
+  return [...candidates].some((c) =>
+    new RegExp(`\\b${c.replace('.', '\\.')}\\s*%`).test(source),
+  );
 }
 
 function slug(name: string): string {
