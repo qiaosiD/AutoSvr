@@ -7,7 +7,7 @@ import { liquidConfigured, parseRates } from '@/lib/rates/parse';
 import { decideSweep } from '@/lib/engine';
 import { DEMO_CUSTOMER } from '@/lib/demo/seed';
 import { buildAccrual } from '@/lib/engine';
-import { insert, rawtreeConfigured, TABLES } from '@/lib/rawtree';
+import { insert, query, rawtreeConfigured, sqlString, TABLES } from '@/lib/rawtree';
 import { getDashboardData } from '@/lib/data';
 import type { RateObservation } from '@/lib/types';
 
@@ -40,6 +40,7 @@ export async function GET(request: Request) {
   // Where the money is right now, per the ledger.
   const current = await getDashboardData(DEMO_CUSTOMER.id);
   const today = new Date().toISOString().slice(0, 10);
+  let accrualSkipped = false;
   const decision = decideSweep(
     current.currentBankId || null,
     current.currentApr,
@@ -67,7 +68,20 @@ export async function GET(request: Request) {
       ]);
     }
     if (landingBank) {
-      await insert(TABLES.accruals, [buildAccrual(DEMO_CUSTOMER, landingBank, landingApr, today)]);
+      // MergeTree does not deduplicate. Writing today's accrual a second time
+      // silently inflates every total the customer sees — and pressing Run
+      // twice, or triggering the job on a day the backfill already covered, is
+      // the easy way to do it. Check before writing rather than after.
+      const already = await query<{ n: number }>(
+        `SELECT count() AS n FROM ${TABLES.accruals}
+         WHERE toString(customerId) = ${sqlString(DEMO_CUSTOMER.id)}
+           AND toString(date) = ${sqlString(today)}`,
+      );
+      if (Number(already[0]?.n ?? 0) === 0) {
+        await insert(TABLES.accruals, [buildAccrual(DEMO_CUSTOMER, landingBank, landingApr, today)]);
+      } else {
+        accrualSkipped = true;
+      }
     }
   }
 
@@ -76,6 +90,7 @@ export async function GET(request: Request) {
     crawled: crawls.length,
     ratesParsed: observations.length,
     moved: decision.shouldMove,
+    accrualAlreadyBooked: accrualSkipped,
     decision,
     persisted: rawtreeConfigured(),
   });
