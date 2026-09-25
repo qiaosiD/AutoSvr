@@ -13,6 +13,7 @@ const NAV = [
   { href: '/account', label: 'Overview' },
   { href: '/account/statements', label: 'Statements' },
   { href: '/account/withdraw', label: 'Withdraw' },
+  { href: '/account/how-it-works', label: 'How it works' },
 ];
 
 export default async function AccountLayout({ children }: { children: React.ReactNode }) {
