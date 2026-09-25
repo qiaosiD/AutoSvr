@@ -50,6 +50,18 @@ export interface GenerateOptions {
  * handing a caller a link that dies in ten minutes invites a broken page.
  */
 export async function generateImage(opts: GenerateOptions): Promise<Uint8Array> {
+  // FLUX rejects dimensions that are not multiples of 32, as a 422 whose body
+  // has to be read carefully to see which field is at fault. Catching it here
+  // costs nothing and says so plainly.
+  for (const [name, value] of [['width', opts.width], ['height', opts.height]] as const) {
+    if (value % 32 !== 0) {
+      const nearest = Math.round(value / 32) * 32;
+      throw new Error(
+        `FLUX needs ${name} to be a multiple of 32; got ${value}. Use ${nearest}.`,
+      );
+    }
+  }
+
   const model = opts.model ?? process.env.BFL_MODEL ?? DEFAULT_MODEL;
   const timeoutMs = (opts.timeoutSeconds ?? 120) * 1000;
 

@@ -26,8 +26,11 @@ const STYLE =
 export const ASSETS: GeneratedAsset[] = [
   {
     path: 'app/(depositor)/opengraph-image.png',
-    width: 1200,
-    height: 630,
+    // 1216x640 rather than the usual 1200x630: FLUX requires both dimensions
+    // to be multiples of 32, and this is the nearest pair at the same ratio.
+    // Social platforms scale to fit, so the 16px difference is invisible.
+    width: 1216,
+    height: 640,
     purpose:
       'Social preview card. Next serves this automatically from the route ' +
       'group, so sharing the link anywhere renders it with no code.',
@@ -40,7 +43,7 @@ export const ASSETS: GeneratedAsset[] = [
   {
     path: 'public/generated/safety-band.jpg',
     width: 1440,
-    height: 600,
+    height: 608,
     purpose:
       'Atmospheric band behind the deposit-protection section. Conveys ' +
       'institutional solidity without implying a specific bank or guarantee.',
