@@ -2,7 +2,7 @@ import { formatCents, formatPct } from '@/lib/apy';
 import { bankName, BANKS_BY_ID } from '@/lib/banks';
 import Link from 'next/link';
 import { getDashboardData } from '@/lib/data';
-import { Timeline } from './components/Timeline';
+import { Timeline } from '../components/Timeline';
 
 export const dynamic = 'force-dynamic';
 

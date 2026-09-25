@@ -223,7 +223,7 @@ export function LinkFlow() {
       <p className="mt-4 break-all font-mono text-[10px] text-zinc-600">public_token: {token}</p>
 
       <Link
-        href="/"
+        href="/dashboard"
         className="mt-5 block w-full rounded-lg bg-emerald-500 py-2.5 text-center text-sm font-medium text-zinc-950 transition hover:bg-emerald-400"
       >
         Go to dashboard

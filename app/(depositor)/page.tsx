@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { BANKS, BASELINE_APR } from '@/lib/banks';
 import { formatCents, formatPct } from '@/lib/apy';
 import { getDepositorAccount } from '@/lib/depositor/account';
-import { SiteFooter, SiteNav } from '../components/chrome';
+import { SiteFooter, SiteNav } from './components/chrome';
 import { FDIC_NON_BANK_NOTICE, PASS_THROUGH_NOTICE } from '@/lib/depositor/disclosures';
 
 export const dynamic = 'force-dynamic';

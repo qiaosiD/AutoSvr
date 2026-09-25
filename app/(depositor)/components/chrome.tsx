@@ -9,7 +9,7 @@ import {
 
 export function Wordmark({ light = false }: { light?: boolean }) {
   return (
-    <Link href="/welcome" className="flex items-center gap-2.5 no-underline">
+    <Link href="/" className="flex items-center gap-2.5 no-underline">
       <span
         className="grid h-8 w-8 place-items-center rounded-lg text-[13px] font-bold text-white"
         style={{ background: light ? '#ffffff22' : 'var(--brand-deep)' }}

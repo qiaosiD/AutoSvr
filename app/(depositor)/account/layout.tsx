@@ -53,7 +53,7 @@ export default async function AccountLayout({ children }: { children: React.Reac
               {initials}
             </span>
             <Link
-              href="/welcome"
+              href="/"
               className="text-[14px] font-medium no-underline hover:opacity-70"
               style={{ color: 'var(--ink-faint)' }}
             >
